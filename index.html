@@ -89,9 +89,6 @@
                     <i data-lucide="user" class="w-3 h-3"></i>
                     <span id="display-username" class="max-w-[80px] truncate">User</span>
                 </div>
-                <button id="toggle-settings-btn" class="p-1 hover:bg-teal-700 rounded transition" title="ตั้งค่า">
-                    <i data-lucide="settings" class="w-5 h-5"></i>
-                </button>
                 <button id="logout-btn" class="p-1 hover:bg-teal-700 rounded text-red-200 hover:text-white transition" title="ออกจากระบบ">
                     <i data-lucide="log-out" class="w-5 h-5"></i>
                 </button>
@@ -106,50 +103,6 @@
             <button id="tab-dashboard" class="flex-1 py-3 text-sm font-semibold text-gray-500 hover:text-teal-600 transition-colors flex justify-center items-center gap-2">
                 <i data-lucide="bar-chart-2" class="w-4 h-4"></i> แดชบอร์ด
             </button>
-        </div>
-
-        <!-- Configuration Panel -->
-        <div id="config-panel" class="hidden bg-gray-100 p-4 border-b border-gray-200 animate-fade-in z-10 relative shadow-inner">
-            <h3 class="font-semibold mb-2 text-sm text-gray-600">ตั้งค่าระบบ (ข้อมูลบันทึกในเครื่อง)</h3>
-            <div class="space-y-3">
-                <div class="bg-blue-50 text-blue-800 text-xs p-3 rounded border border-blue-200">
-                    <p><strong>หมายเหตุ:</strong> ข้อมูลจะถูกดึง/บันทึกไปที่ Google Sheets ตาม URL ที่กำหนด</p>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Gemini API Key (จำเป็นสำหรับ AI)</label>
-                    <input 
-                        type="password" 
-                        id="api-key-input"
-                        placeholder="วาง API Key ของคุณที่นี่..."
-                        class="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-teal-500 outline-none"
-                    />
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">เลือกโมเดล AI</label>
-                    <select id="model-name-input" class="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-white">
-                        <option value="gemini-2.5-flash">gemini-2.5-flash (ล่าสุด)</option>
-                        <option value="gemini-2.0-flash">gemini-2.0-flash (แนะนำ)</option>
-                        <option value="gemini-1.5-flash" selected>gemini-1.5-flash (เสถียรสุด)</option>
-                        <option value="gemini-1.5-flash-8b">gemini-1.5-flash-8b</option>
-                        <option value="gemini-1.5-pro">gemini-1.5-pro</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Google Apps Script URL (จำเป็น)</label>
-                    <input 
-                        type="text" 
-                        id="script-url-input"
-                        placeholder="https://script.google.com/macros/s/..."
-                        class="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-teal-500 outline-none"
-                    />
-                </div>
-                <button 
-                    id="save-settings-btn"
-                    class="w-full bg-gray-800 text-white py-2 rounded text-sm hover:bg-gray-700 transition"
-                >
-                    บันทึกและปิด
-                </button>
-            </div>
         </div>
 
         <!-- ==================== RECORD VIEW (หน้าบันทึก) ==================== -->
@@ -191,7 +144,7 @@
             <!-- Loading State -->
             <div id="loading-state" class="hidden text-center py-8">
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-                <p class="text-gray-600 animate-pulse">AI กำลังอ่านค่าตัวเลข...</p>
+                <p id="loading-text" class="text-gray-600 animate-pulse">กำลังโหลด...</p>
             </div>
 
             <!-- Results Display -->
@@ -275,7 +228,7 @@
 
             <!-- Status Messages -->
             <div id="status-success" class="hidden bg-green-100 text-green-700 p-3 rounded-lg flex items-center gap-2 text-sm mt-4 animate-fade-in">
-                <i data-lucide="check-circle" class="w-5 h-5"></i> บันทึกข้อมูลลง Google Sheet เรียบร้อยแล้ว!
+                <i data-lucide="check-circle" class="w-5 h-5"></i> บันทึกข้อมูลเรียบร้อยแล้ว!
             </div>
             
             <div id="status-error" class="hidden bg-red-100 text-red-700 p-3 rounded-lg flex items-center gap-2 text-sm mt-4 animate-fade-in">
@@ -298,7 +251,7 @@
             <!-- Dashboard Loading State -->
             <div id="dash-loading" class="text-center py-12">
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto mb-3"></div>
-                <p class="text-xs text-gray-500">กำลังโหลดข้อมูลจาก Google Sheets...</p>
+                <p class="text-xs text-gray-500">กำลังโหลดข้อมูลจากส่วนกลาง...</p>
             </div>
 
             <!-- Dashboard Empty State -->
@@ -338,32 +291,32 @@
 
     <!-- Application Logic -->
     <script>
-        // Initialize Icons
-        lucide.createIcons();
+        // ==========================================
+        // ⚙️ ตั้งค่าส่วนกลาง (Centralized Configuration)
+        // ==========================================
+        // ⚠️ ผู้พัฒนาต้องนำ Google Apps Script URL มาใส่ที่นี่เพียงที่เดียว
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby2SCHGf6E-_-wtcDH_vRbmTvNXrw-U_o9afI_a_qpBEstxNI8HYpmMNuwH_CSiTaI2/exec"; 
 
         // State Variables
         let currentUser = localStorage.getItem('bp_app_user') || '';
-        let apiKey = localStorage.getItem('bp_api_key') || '';
-        let modelName = localStorage.getItem('bp_model_name') || 'gemini-1.5-flash';
-        let scriptUrl = localStorage.getItem('bp_script_url') || '';
+        let centralApiKey = 'AIzaSyCcXm2cQjyw9XNXtF_1G7U8aPEzwSML18I';
+        let centralModelName = 'gemini-2.5-flash'; // ค่าเริ่มต้น หากดึงจาก Sheet ไม่สำเร็จ
+        
         let base64Image = null;
         let mimeType = '';
         let isSaving = false;
         let currentTab = 'record'; 
 
+        // Initialize Icons
+        lucide.createIcons();
+
         // DOM Elements
         const loginScreen = document.getElementById('login-screen');
         const appScreen = document.getElementById('app-screen');
-        const configPanel = document.getElementById('config-panel');
         const loginForm = document.getElementById('login-form');
         const usernameInput = document.getElementById('username-input');
         const displayUsername = document.getElementById('display-username');
         const logoutBtn = document.getElementById('logout-btn');
-        const toggleSettingsBtn = document.getElementById('toggle-settings-btn');
-        const saveSettingsBtn = document.getElementById('save-settings-btn');
-        const apiKeyInput = document.getElementById('api-key-input');
-        const modelNameInput = document.getElementById('model-name-input');
-        const scriptUrlInput = document.getElementById('script-url-input');
         
         // Tabs
         const tabRecord = document.getElementById('tab-record');
@@ -380,6 +333,7 @@
         const uploadPlaceholder = document.getElementById('upload-placeholder');
         const analyzeBtn = document.getElementById('analyze-btn');
         const loadingState = document.getElementById('loading-state');
+        const loadingText = document.getElementById('loading-text');
         const resultsDisplay = document.getElementById('results-display');
         
         // Result Inputs
@@ -411,12 +365,23 @@
         const dashErrorMsg = document.getElementById('dash-error-msg');
         const goToRecordBtn = document.getElementById('go-to-record-btn');
 
+        // ฟังก์ชันตั้งค่าวัน-เวลาปัจจุบัน
+        function setCurrentDateTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            dateVal.value = `${year}-${month}-${day}`;
+            
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            timeVal.value = `${hours}:${minutes}`;
+            
+            timeVal.dispatchEvent(new Event('change'));
+        }
+
         // Initial Setup
         function initApp() {
-            apiKeyInput.value = apiKey;
-            modelNameInput.value = modelName;
-            scriptUrlInput.value = scriptUrl;
-            
             if (currentUser) {
                 showAppScreen();
             } else {
@@ -429,30 +394,28 @@
             appScreen.classList.add('hidden');
         }
 
-        // ฟังก์ชันดึงค่า Config ล่าสุดจาก Google Sheets (ปรับปรุงไม่ให้ทับค่าว่าง)
-        async function fetchLatestConfig() {
-            if (!scriptUrl) return; 
+        // ฟังก์ชันดึงค่า Config ล่าสุดจาก Google Sheets (ไม่พึ่งพา LocalStorage แล้ว)
+        async function fetchCentralConfig() {
+            if (!SCRIPT_URL || SCRIPT_URL.trim() === "") {
+                console.warn("ยังไม่ได้ใส่ SCRIPT_URL ในโค้ด");
+                return;
+            }
             try {
-                const response = await fetch(`${scriptUrl}?action=get_settings`);
+                const response = await fetch(`${SCRIPT_URL}?action=get_settings`);
                 const data = await response.json();
                 
-                // ตรวจสอบว่าดึงค่ามาได้ และ "ไม่เป็นค่าว่าง" เท่านั้น ถึงจะเอามาอัปเดต
                 if (data.apiKey && data.apiKey.trim() !== "") {
-                    apiKey = data.apiKey.trim();
-                    apiKeyInput.value = apiKey;
-                    localStorage.setItem('bp_api_key', apiKey);
-                }
-                if (data.scriptUrl && data.scriptUrl.trim() !== "") {
-                    scriptUrl = data.scriptUrl.trim();
-                    scriptUrlInput.value = scriptUrl;
-                    localStorage.setItem('bp_script_url', scriptUrl);
+                    centralApiKey = data.apiKey.trim();
                 }
                 
-                if (apiKey && scriptUrl) {
-                    configPanel.classList.add('hidden');
+                // หากในอนาคตมีการส่งชื่อโมเดลมาจาก Sheet
+                if (data.modelName && data.modelName.trim() !== "") {
+                    centralModelName = data.modelName.trim();
                 }
+                
+                console.log("Central Config Loaded Successfully");
             } catch (error) {
-                console.warn("ไม่สามารถดึงข้อมูล Config จาก Google Sheets ได้เบื้องหลัง:", error);
+                console.warn("ไม่สามารถดึงข้อมูลการตั้งค่าจากศูนย์กลางได้:", error);
             }
         }
 
@@ -461,13 +424,9 @@
             appScreen.classList.remove('hidden');
             displayUsername.textContent = currentUser;
             
-            // Show config if missing URL or API key
-            if (!scriptUrl || !apiKey) {
-                configPanel.classList.remove('hidden');
-            } else {
-                configPanel.classList.add('hidden');
-                fetchLatestConfig();
-            }
+            // โหลดค่า Config จากส่วนกลางเมื่อเข้าสู่แอป
+            fetchCentralConfig();
+            
             resetWorkspace();
             switchTab('record');
         }
@@ -509,8 +468,8 @@
         // DASHBOARD LOGIC
         // ==========================================
         async function loadDashboardData() {
-            if (!scriptUrl) {
-                dashErrorMsg.textContent = "กรุณาตั้งค่า Google Apps Script URL ในหน้าตั้งค่าก่อน";
+            if (!SCRIPT_URL) {
+                dashErrorMsg.textContent = "ระบบส่วนกลางยังไม่ได้เชื่อมต่อฐานข้อมูล (URL ว่างเปล่า)";
                 dashErrorMsg.classList.remove('hidden');
                 dashLoading.classList.add('hidden');
                 dashEmpty.classList.add('hidden');
@@ -524,7 +483,7 @@
             dashErrorMsg.classList.add('hidden');
             
             try {
-                const response = await fetch(`${scriptUrl}?action=get_data`);
+                const response = await fetch(`${SCRIPT_URL}?action=get_data`);
                 const data = await response.json();
                 
                 if (!Array.isArray(data) || data.length === 0) {
@@ -591,7 +550,7 @@
                 
             } catch (error) {
                 console.error("Error fetching dashboard data:", error);
-                dashErrorMsg.textContent = "เกิดข้อผิดพลาดในการโหลดข้อมูล: " + error.message;
+                dashErrorMsg.textContent = "เกิดข้อผิดพลาดในการโหลดข้อมูลส่วนกลาง";
                 dashErrorMsg.classList.remove('hidden');
                 dashLoading.classList.add('hidden');
             }
@@ -617,44 +576,6 @@
             showLoginScreen();
         });
 
-        toggleSettingsBtn.addEventListener('click', () => {
-            configPanel.classList.toggle('hidden');
-        });
-
-        saveSettingsBtn.addEventListener('click', async () => {
-            apiKey = apiKeyInput.value.trim();
-            modelName = modelNameInput.value.trim() || 'gemini-1.5-flash';
-            scriptUrl = scriptUrlInput.value.trim();
-            
-            localStorage.setItem('bp_api_key', apiKey);
-            localStorage.setItem('bp_model_name', modelName);
-            localStorage.setItem('bp_script_url', scriptUrl);
-            configPanel.classList.add('hidden');
-            
-            if (scriptUrl && apiKey) {
-                try {
-                    await fetch(scriptUrl, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'log_settings',
-                            user: currentUser || 'ระบบ/ไม่ได้ล็อกอิน',
-                            apiKey: apiKey,
-                            scriptUrl: scriptUrl,
-                            timestamp: new Date().toLocaleString('th-TH')
-                        })
-                    });
-                } catch (e) {
-                    console.warn("Failed to log settings to Google Sheets", e);
-                }
-            }
-            
-            if (currentTab === 'dashboard') {
-                loadDashboardData();
-            }
-        });
-
         uploadDropzone.addEventListener('click', () => {
             fileInput.click();
         });
@@ -662,17 +583,46 @@
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
-                mimeType = file.type;
+                mimeType = 'image/jpeg'; // บังคับเป็น JPEG เพื่อรองรับการบีบอัด
                 const reader = new FileReader();
                 reader.onload = (event) => {
-                    const dataUrl = event.target.result;
-                    imagePreview.src = dataUrl;
-                    base64Image = dataUrl.split(',')[1];
-                    
-                    uploadPlaceholder.classList.add('hidden');
-                    previewContainer.classList.remove('hidden');
-                    analyzeBtn.classList.remove('hidden');
-                    statusError.classList.add('hidden');
+                    const img = new Image();
+                    img.onload = () => {
+                        // 🚀 ระบบบีบอัดภาพ (Image Compression) ลดขนาดไฟล์ก่อนส่งให้ AI เพื่อความเร็วและป้องกัน Error
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 1024;
+                        const MAX_HEIGHT = 1024;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > MAX_WIDTH) {
+                                height *= MAX_WIDTH / width;
+                                width = MAX_WIDTH;
+                            }
+                        } else {
+                            if (height > MAX_HEIGHT) {
+                                width *= MAX_HEIGHT / height;
+                                height = MAX_HEIGHT;
+                            }
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                        
+                        imagePreview.src = compressedDataUrl;
+                        base64Image = compressedDataUrl.split(',')[1];
+                        
+                        uploadPlaceholder.classList.add('hidden');
+                        previewContainer.classList.remove('hidden');
+                        analyzeBtn.classList.remove('hidden');
+                        statusError.classList.add('hidden');
+                    };
+                    img.src = event.target.result;
                 };
                 reader.readAsDataURL(file);
             }
@@ -693,6 +643,7 @@
             locationVal.value = '';
             locationErrorMsg.classList.add('hidden');
             locationIcon.classList.remove('animate-bounce');
+            setCurrentDateTime(); // ⏱️ ตั้งค่าวันเวลาปัจจุบันเตรียมไว้เลย
         }
 
         resetBtn.addEventListener('click', resetWorkspace);
@@ -762,13 +713,24 @@
 
         // Analyze Image via Gemini
         analyzeBtn.addEventListener('click', async () => {
-            if (!apiKey || apiKey.trim() === '') {
-                showError('กรุณาระบุ Gemini API Key ในเมนูตั้งค่าก่อนการใช้งาน');
-                configPanel.classList.remove('hidden');
-                return;
+            if (!centralApiKey || centralApiKey.trim() === '') {
+                // หากไม่มี Key ให้ลองดึงข้อมูลจากส่วนกลางอีกครั้งก่อนแจ้งเตือน
+                uploadSection.classList.add('hidden');
+                loadingText.textContent = "กำลังเชื่อมต่อระบบส่วนกลาง...";
+                loadingState.classList.remove('hidden');
+                
+                await fetchCentralConfig();
+                
+                if (!centralApiKey || centralApiKey.trim() === '') {
+                    loadingState.classList.add('hidden');
+                    uploadSection.classList.remove('hidden');
+                    showError('ไม่พบการตั้งค่า API Key จากฐานข้อมูลส่วนกลาง โปรดตรวจสอบ Google Sheets');
+                    return;
+                }
             }
 
             uploadSection.classList.add('hidden');
+            loadingText.textContent = "AI กำลังอ่านค่าตัวเลข...";
             loadingState.classList.remove('hidden');
             statusError.classList.add('hidden');
 
@@ -798,11 +760,9 @@
             };
 
             try {
-                // ทำความสะอาด API Key และ Model Name ป้องกันช่องว่างที่อาจทำให้ URL พัง
-                const cleanApiKey = encodeURIComponent(apiKey.trim());
-                const cleanModelName = encodeURIComponent(modelName.trim());
+                const cleanApiKey = encodeURIComponent(centralApiKey.trim());
+                const cleanModelName = encodeURIComponent(centralModelName.trim());
 
-                // เรียกใช้ API ด้วย Key และ Model ที่เลือกล่าสุด
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${cleanModelName}:generateContent?key=${cleanApiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -811,7 +771,6 @@
 
                 const data = await response.json();
                 
-                // แจ้งเตือน Error จาก Google API อย่างละเอียด
                 if (data.error) {
                     throw new Error(`[${data.error.code || 'API Error'}] ${data.error.message}`);
                 }
@@ -822,8 +781,15 @@
                 sysVal.value = parsedResult.sys || '';
                 diaVal.value = parsedResult.dia || '';
                 pulseVal.value = parsedResult.pulse || '';
-                dateVal.value = parsedResult.date || '';
-                timeVal.value = parsedResult.time || '';
+                
+                // 💡 ใช้ค่าที่ AI อ่านได้ก่อน ถ้าไม่ได้อ่านหรือหาไม่เจอ ให้ใช้วันเวลาปัจจุบันที่ระบบตั้งไว้ให้
+                if (parsedResult.date && parsedResult.date !== "YYYY-MM-DD") {
+                    dateVal.value = parsedResult.date;
+                }
+                if (parsedResult.time && parsedResult.time !== "HH:MM") {
+                    timeVal.value = parsedResult.time;
+                }
+
                 periodSelect.value = parsedResult.period || 'เช้า';
                 periodSelect.dispatchEvent(new Event('change'));
 
@@ -832,16 +798,15 @@
 
             } catch (error) {
                 console.warn(error);
-                showError('เกิดข้อผิดพลาด: ' + error.message);
+                showError('เกิดข้อผิดพลาดในการวิเคราะห์ส่วนกลาง: ' + error.message);
                 loadingState.classList.add('hidden');
                 uploadSection.classList.remove('hidden');
             }
         });
 
         saveDataBtn.addEventListener('click', async () => {
-            if (!scriptUrl) {
-                showError('กรุณาระบุ Google Script URL ในเมนูตั้งค่าก่อน');
-                configPanel.classList.remove('hidden');
+            if (!SCRIPT_URL) {
+                showError('ไม่สามารถบันทึกได้ เนื่องจากไม่ได้เชื่อมต่อฐานข้อมูลส่วนกลาง');
                 return;
             }
             if (isSaving) return;
@@ -862,7 +827,7 @@
             };
 
             try {
-                await fetch(scriptUrl, {
+                await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors', 
                     headers: { 'Content-Type': 'application/json' },
