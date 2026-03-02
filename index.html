@@ -245,14 +245,12 @@
         // ==========================================
         // ⚙️ ตั้งค่าส่วนกลาง (Centralized Configuration)
         // ==========================================
-        const apiKey = ""; // ปล่อยว่างไว้สำหรับระบบ Canvas
-        
         // ⚠️ ผู้พัฒนา: นำ Google Apps Script URL ของคุณมาใส่ตรงนี้
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxh7YBqhqBOaC8Jhbwy715uoEJEQCBdZc4ggX98omhRuMxz7nw8kifDUkEhwqvkPXd9/exec"; // <-- แก้ไขให้เป็น URL จริงของคุณ
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxh7YBqhqBOaC8Jhbwy715uoEJEQCBdZc4ggX98omhRuMxz7nw8kifDUkEhwqvkPXd9/exec"; 
 
         let currentUser = localStorage.getItem('bp_app_user') || '';
         let centralApiKey = '';
-        let centralModelName = ''; // รับค่าจาก Sheet
+        let centralModelName = ''; 
         
         let base64Image = null;
         let mimeType = '';
@@ -335,18 +333,23 @@
             }
         }
 
-        // 📡 ดึงข้อมูล API Key จาก Google Sheets
+        // 📡 ดึงข้อมูล API Key จาก Google Sheets พร้อมล้างค่าขยะ
         async function fetchCentralConfig() {
             if (!SCRIPT_URL || SCRIPT_URL.trim() === "") return false;
             try {
                 const response = await fetch(`${SCRIPT_URL}?action=get_settings`);
                 const data = await response.json();
                 
-                if (data.apiKey && data.apiKey.trim() !== "") {
-                    centralApiKey = data.apiKey.trim();
+                // 🧹 กรองข้อมูล: ลบ Spacebar, ลบ Tab, ลบการขึ้นบรรทัดใหม่ ทิ้งให้หมด
+                if (data.apiKey) {
+                    centralApiKey = data.apiKey.replace(/\s+/g, ''); 
                 }
-                if (data.modelName && data.modelName.trim() !== "") {
-                    centralModelName = data.modelName.trim();
+                if (data.modelName) {
+                    centralModelName = data.modelName.replace(/\s+/g, '');
+                    // ลบคำว่า models/ ออกถ้าเผลอพิมพ์ติดมาด้วย (แก้บัคจากภาพที่ 4)
+                    if (centralModelName.startsWith('models/')) {
+                        centralModelName = centralModelName.replace('models/', '');
+                    }
                 }
                 return true;
             } catch (error) {
@@ -370,7 +373,7 @@
             errorDetailText.textContent = detail;
             errorDetailText.classList.remove('hidden');
             if (!detail) errorDetailText.classList.add('hidden');
-            setTimeout(() => { statusError.classList.add('hidden'); }, 8000);
+            setTimeout(() => { statusError.classList.add('hidden'); }, 10000);
         }
         
         function switchTab(tab) {
@@ -495,7 +498,7 @@
                 reader.onload = (event) => {
                     const img = new Image();
                     img.onload = () => {
-                        // 🚀 บีบอัดรูปก่อนส่ง ป้องกัน API ล่ม
+                        // บีบอัดรูปก่อนส่ง ป้องกัน API ล่ม
                         const canvas = document.createElement('canvas');
                         const MAX = 1024;
                         let w = img.width, h = img.height;
@@ -575,7 +578,7 @@
             );
         });
 
-        // ================= AI ANALYSIS (อัปเดตระบบสลับโมเดลอัตโนมัติ) =================
+        // ================= AI ANALYSIS (พร้อมระบบซ่อมชื่อโมเดล และ Fallback อัตโนมัติ) =================
         analyzeBtn.addEventListener('click', async () => {
             uploadSection.classList.add('hidden');
             loadingText.textContent = "กำลังเชื่อมต่อระบบ...";
@@ -590,23 +593,22 @@
                 if (!centralApiKey || centralApiKey.trim() === '') {
                     loadingState.classList.add('hidden');
                     uploadSection.classList.remove('hidden');
-                    showError('ไม่พบ API Key', 'กรุณาตรวจสอบการตั้งค่าใน Google Sheets (ช่อง API Key ห้ามว่าง)');
+                    showError('ไม่พบ API Key', 'โปรดตรวจสอบ Google Sheets ช่อง API Key ว่ามีข้อมูลหรือไม่');
                     return;
                 }
             }
 
             loadingText.textContent = "AI กำลังอ่านค่าตัวเลข...";
-            const cleanApiKey = encodeURIComponent(centralApiKey.trim());
             
             // 💡 รายชื่อโมเดลที่จะพยายามสลับใช้ ถ้าตัวแรกเรียกแล้วเจอ Error 404
             const fallbackModels = [
-                centralModelName || 'gemini-1.5-flash', // เริ่มจากตัวใน Sheet ก่อน
-                'gemini-1.5-flash', 
-                'gemini-2.0-flash',
-                'gemini-1.5-pro',
-                'gemini-2.5-flash-preview-09-2025' // ตัวสุดท้ายสำหรับ Canvas
+                centralModelName,            // ลองตัวที่ดึงจาก Sheet ก่อนเป็นอันดับ 1
+                'gemini-1.5-flash',          // ลองตัวเสถียรสุด
+                'gemini-2.0-flash',          // ลองรุ่นใหม่
+                'gemini-1.5-pro'             // ลองรุ่นโปร
             ];
-            // กรองตัวซ้ำออก
+            
+            // กรองเอาเฉพาะชื่อโมเดลที่มีค่า และไม่ซ้ำกัน
             const uniqueModels = [...new Set(fallbackModels.filter(m => m && m.trim() !== ''))];
 
             const prompt = `
@@ -627,11 +629,14 @@
 
             // 🔄 ระบบพยายามสลับโมเดล (Retry Loop)
             for (let i = 0; i < uniqueModels.length; i++) {
-                const currentModelToTry = encodeURIComponent(uniqueModels[i]);
+                const currentModelToTry = uniqueModels[i];
                 loadingSubtext.textContent = `กำลังลองใช้โมเดล: ${currentModelToTry}...`;
                 
                 try {
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${currentModelToTry}:generateContent?key=${cleanApiKey}`, {
+                    // ไม่ใช้ encodeURIComponent กับชื่อโมเดล เพราะเราล้างช่องว่างไปหมดแล้ว
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${currentModelToTry}:generateContent?key=${centralApiKey}`;
+                    
+                    const response = await fetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(requestBody)
@@ -641,22 +646,22 @@
                     
                     if (data.error) {
                         lastErrorMessage = `[${data.error.code}] ${data.error.message}`;
-                        // ถ้าเจอ 404 ให้วนลูปไปลองโมเดลตัวถัดไปทันที
-                        if (data.error.code === 404) {
-                            console.warn(`Model ${currentModelToTry} failed with 404. Trying next...`);
+                        // ถ้าเจอ 404 (หาโมเดลไม่เจอ) ให้วนลูปไปลองโมเดลตัวถัดไป
+                        if (data.error.code === 404 || data.error.code === 400) {
+                            console.warn(`Model ${currentModelToTry} failed. Trying next...`);
                             continue; 
                         } else {
-                            throw new Error(lastErrorMessage); // ถ้าเป็น Error อื่น (เช่น 400, 403 API ผิด) ให้หยุดทันที
+                            // ถ้าเป็น Error อื่น (เช่น API ผิด หรือหมดโควต้า) ให้หยุดทันที
+                            throw new Error(lastErrorMessage); 
                         }
                     }
                     
-                    // ถ้าสำเร็จ ออกจากลูป
+                    // ถ้าสำเร็จ ออกจากลูปได้เลย
                     successData = data;
                     break;
 
                 } catch (error) {
                     lastErrorMessage = error.message;
-                    // ถ้า Error ทั่วไป ให้หยุด
                     break;
                 }
             }
@@ -667,9 +672,11 @@
                 uploadSection.classList.remove('hidden');
                 
                 if (lastErrorMessage.includes('API_KEY_INVALID') || lastErrorMessage.includes('unregistered')) {
-                     showError('API Key ไม่ถูกต้อง', 'กรุณาตรวจสอบว่า Copy API Key มาครบถ้วนหรือไม่ใน Sheet');
-                } else if (lastErrorMessage.includes('404')) {
-                     showError('ระบบปฏิเสธการเชื่อมต่อ', `API Key ของคุณไม่รองรับโมเดลใดๆ เลย (${lastErrorMessage})`);
+                     showError('การเชื่อมต่อถูกปฏิเสธ', 'กรุณาตรวจสอบว่า API Key ใน Google Sheet ถูกต้อง (อาจมีตัวอักษรตกหล่น)');
+                } else if (lastErrorMessage.includes('404') || lastErrorMessage.includes('400')) {
+                     showError('เซิร์ฟเวอร์ AI ไม่รู้จักชื่อโมเดล', `ระบบลองทุกโมเดลแล้วแต่ไม่สำเร็จ โปรดแก้ไขชื่อโมเดลใน Google Sheet เป็น 'gemini-1.5-flash'`);
+                } else if (lastErrorMessage.toLowerCase().includes('leaked')) {
+                     showError('API Key ถูกระงับการใช้งาน', 'Google ตรวจพบว่า Key ของคุณหลุดสู่สาธารณะ กรุณาสร้าง Key ใหม่ใน AI Studio และนำไปอัปเดตใน Sheet');
                 } else {
                      showError('เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ AI', lastErrorMessage);
                 }
@@ -692,7 +699,7 @@
                 loadingState.classList.add('hidden');
                 resultsDisplay.classList.remove('hidden');
             } catch(e) {
-                showError('อ่านผลลัพธ์ล้มเหลว', 'AI ไม่สามารถแปลงค่าเป็นตัวเลขได้');
+                showError('อ่านผลลัพธ์ล้มเหลว', 'AI ไม่สามารถแปลงค่าเป็นตัวเลขได้ โปรดลองถ่ายใหม่');
                 loadingState.classList.add('hidden');
                 uploadSection.classList.remove('hidden');
             }
@@ -720,7 +727,7 @@
                 statusSuccess.classList.remove('hidden');
                 setTimeout(() => resetWorkspace(), 3000);
             } catch (error) {
-                showError('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+                showError('เกิดข้อผิดพลาดในการบันทึกข้อมูล', error.message);
             } finally {
                 isSaving = false;
                 saveDataBtn.classList.replace('bg-gray-400', 'bg-green-600');
