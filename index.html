@@ -110,13 +110,10 @@
 
         <!-- Configuration Panel -->
         <div id="config-panel" class="hidden bg-gray-100 p-4 border-b border-gray-200 animate-fade-in z-10 relative shadow-inner">
-            <h3 class="font-semibold mb-2 text-sm text-gray-600">ตั้งค่าระบบ</h3>
+            <h3 class="font-semibold mb-2 text-sm text-gray-600">ตั้งค่าระบบ (ข้อมูลบันทึกในเครื่อง)</h3>
             <div class="space-y-3">
-                <div class="bg-blue-50 text-blue-800 text-xs p-3 rounded border border-blue-200">
-                    <p><strong>หมายเหตุ:</strong> ระบบจะจดจำค่าไว้ในเครื่องของคุณ</p>
-                </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Gemini API Key (จำเป็นสำหรับ AI)</label>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Gemini API Key</label>
                     <input 
                         type="password" 
                         id="api-key-input"
@@ -125,7 +122,16 @@
                     />
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Google Apps Script URL (จำเป็นสำหรับการบันทึก)</label>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">ชื่อโมเดล AI (หาก Error ลองแก้เป็น gemini-1.5-flash-8b)</label>
+                    <input 
+                        type="text" 
+                        id="model-name-input"
+                        placeholder="gemini-1.5-flash"
+                        class="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                    />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Google Apps Script URL</label>
                     <input 
                         type="text" 
                         id="script-url-input"
@@ -334,6 +340,7 @@
         // State Variables
         let currentUser = localStorage.getItem('bp_app_user') || '';
         let apiKey = localStorage.getItem('bp_api_key') || '';
+        let modelName = localStorage.getItem('bp_model_name') || 'gemini-1.5-flash';
         let scriptUrl = localStorage.getItem('bp_script_url') || '';
         let base64Image = null;
         let mimeType = '';
@@ -351,6 +358,7 @@
         const toggleSettingsBtn = document.getElementById('toggle-settings-btn');
         const saveSettingsBtn = document.getElementById('save-settings-btn');
         const apiKeyInput = document.getElementById('api-key-input');
+        const modelNameInput = document.getElementById('model-name-input');
         const scriptUrlInput = document.getElementById('script-url-input');
         
         // Tabs
@@ -402,39 +410,13 @@
         // Initial Setup
         function initApp() {
             apiKeyInput.value = apiKey;
+            modelNameInput.value = modelName;
             scriptUrlInput.value = scriptUrl;
             
             if (currentUser) {
                 showAppScreen();
             } else {
                 showLoginScreen();
-            }
-        }
-
-        // ฟังก์ชันดึงค่า Config ล่าสุดจาก Google Sheets
-        async function fetchLatestConfig() {
-            if (!scriptUrl) return; 
-            try {
-                const response = await fetch(`${scriptUrl}?action=get_settings`);
-                const data = await response.json();
-                
-                // หากดึงค่าได้ ให้อัปเดต UI และ LocalStorage
-                if (data.apiKey) {
-                    apiKey = data.apiKey;
-                    apiKeyInput.value = apiKey;
-                    localStorage.setItem('bp_api_key', apiKey);
-                }
-                if (data.scriptUrl) {
-                    scriptUrl = data.scriptUrl;
-                    scriptUrlInput.value = scriptUrl;
-                    localStorage.setItem('bp_script_url', scriptUrl);
-                }
-                
-                if (data.apiKey && data.scriptUrl) {
-                    configPanel.classList.add('hidden');
-                }
-            } catch (error) {
-                console.warn("ไม่สามารถดึงข้อมูล Config จาก Google Sheets ได้เบื้องหลัง:", error);
             }
         }
 
@@ -453,7 +435,6 @@
                 configPanel.classList.remove('hidden');
             } else {
                 configPanel.classList.add('hidden');
-                fetchLatestConfig();
             }
             resetWorkspace();
             switchTab('record');
@@ -462,7 +443,7 @@
         function showError(msg) {
             statusError.classList.remove('hidden');
             errorMsgText.textContent = msg;
-            setTimeout(() => { statusError.classList.add('hidden'); }, 5000);
+            setTimeout(() => { statusError.classList.add('hidden'); }, 7000);
         }
         
         // ==========================================
@@ -610,30 +591,13 @@
 
         saveSettingsBtn.addEventListener('click', async () => {
             apiKey = apiKeyInput.value.trim();
+            modelName = modelNameInput.value.trim() || 'gemini-1.5-flash';
             scriptUrl = scriptUrlInput.value.trim();
             
             localStorage.setItem('bp_api_key', apiKey);
+            localStorage.setItem('bp_model_name', modelName);
             localStorage.setItem('bp_script_url', scriptUrl);
             configPanel.classList.add('hidden');
-            
-            if (scriptUrl) {
-                try {
-                    await fetch(scriptUrl, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'log_settings',
-                            user: currentUser || 'ระบบ/ไม่ได้ล็อกอิน',
-                            apiKey: apiKey,
-                            scriptUrl: scriptUrl,
-                            timestamp: new Date().toLocaleString('th-TH')
-                        })
-                    });
-                } catch (e) {
-                    console.warn("Failed to log settings to Google Sheets", e);
-                }
-            }
             
             if (currentTab === 'dashboard') {
                 loadDashboardData();
@@ -747,7 +711,7 @@
 
         analyzeBtn.addEventListener('click', async () => {
             if (!apiKey) {
-                showError('กรุณาระบุ Gemini API Key ในเมนูตั้งค่าก่อน');
+                showError('กรุณาระบุ Gemini API Key ในเมนูตั้งค่าก่อนการใช้งาน');
                 configPanel.classList.remove('hidden');
                 return;
             }
@@ -756,9 +720,6 @@
             loadingState.classList.remove('hidden');
             statusError.classList.add('hidden');
 
-            // เปลี่ยนมาใช้โมเดลเสถียรสำหรับการใช้งานบนเว็บไซต์ทั่วไป
-            const targetModel = 'gemini-1.5-flash';
-            
             const prompt = `
                 Analyze this image of a blood pressure monitor. 
                 Extract the following numbers: Systolic (SYS), Diastolic (DIA), and Pulse.
@@ -785,15 +746,19 @@
             };
 
             try {
-                // อัปเดต URL เพื่อให้เรียกใช้งานด้วย API Key ที่คุณกรอก
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`, {
+                // เรียกใช้ API โดยอ่านชื่อโมเดล และ API Key จากที่กรอกในหน้าตั้งค่า
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestBody)
                 });
 
                 const data = await response.json();
-                if (data.error) throw new Error(data.error.message);
+                
+                // แจ้งเตือน Error จาก Google API อย่างละเอียด
+                if (data.error) {
+                    throw new Error(`[${data.error.code}] ${data.error.message}`);
+                }
 
                 const textResponse = data.candidates[0].content.parts[0].text;
                 const parsedResult = JSON.parse(textResponse);
@@ -811,7 +776,7 @@
 
             } catch (error) {
                 console.warn(error);
-                showError('เกิดข้อผิดพลาดในการวิเคราะห์ภาพ: ' + error.message);
+                showError('เกิดข้อผิดพลาดในการวิเคราะห์: ' + error.message);
                 loadingState.classList.add('hidden');
                 uploadSection.classList.remove('hidden');
             }
